@@ -1,5 +1,5 @@
 import streamlit as st
-import pyodbc
+import sqlite3
 import pandas as pd
 import math
 import plotly.express as px
@@ -45,45 +45,34 @@ st.markdown("""
     .element-container:has(.stDataFrame) {
         width: 100% !important;
     }
-    .title-container {
-        margin-top: -30px;
-        margin-bottom: 0px;
-        padding-top: 0px;
-    }
-    .title-container h1 {
-        margin: 0;
-        font-size: 40px;
-    }
     </style>
-    <div class="title-container" style='display: flex; justify-content: center; align-items: center; gap: 10px;'>
-        <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png" width="40">
-        <h1>Lead Manager</h1>
-    </div>
 """, unsafe_allow_html=True)
 
 # ---- Dark Mode Styling ----
 if st.session_state.get("dark_mode"):
     st.markdown("""
     <style>
-    .stApp {
-        background-color: #1e1e1e !important;
-        color: white !important;
-    }
-    div[data-testid="stSidebar"] {
-        background-color: #2c2c2c !important;
-        color: white !important;
-    }
+    .stApp { background-color: #1e1e1e !important; color: white !important; }
+    div[data-testid="stSidebar"] { background-color: #2c2c2c !important; color: white !important; }
     .stSelectbox div[data-baseweb="select"], .stTextInput input, .stTextArea textarea {
-        background-color: #333 !important;
-        color: white !important;
-    }
-    .css-1n76uvr, .css-1siy2j7 {
-        color: white !important;
+        background-color: #333 !important; color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# ---- Session State Defaults ----
+# ---- Title ----
+st.markdown("""
+<style>
+.title-container { margin-top: -30px; margin-bottom: 0px; padding-top: 0px; }
+.title-container h1 { margin: 0; font-size: 40px; }
+</style>
+<div class="title-container" style='display: flex; justify-content: center; align-items: center; gap: 10px;'>
+    <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png" width="40">
+    <h1>Lead Manager</h1>
+</div>
+""", unsafe_allow_html=True)
+
+# ---- Session Defaults ----
 for key, default in {
     "dark_mode": False,
     "page": 1,
@@ -95,21 +84,18 @@ for key, default in {
 
 # ---- Sidebar ----
 st.sidebar.markdown("<h2 style='color:#4B4B4B; font-weight:600;'> 🏢 Brick Work </h2>", unsafe_allow_html=True)
-dark_mode_toggle = st.sidebar.checkbox("🌚 Dark Mode", value=st.session_state.dark_mode)
-if dark_mode_toggle != st.session_state.dark_mode:
-    st.session_state.dark_mode = dark_mode_toggle
-    st.rerun()
+if st.sidebar.checkbox("🌚 Dark Mode", value=st.session_state.dark_mode):
+    st.session_state.dark_mode = True
+else:
+    st.session_state.dark_mode = False
 
 st.sidebar.markdown("### 🔍 Search & Filters")
 
-# ---- DB Connection ----
-conn_str = (
-    "DRIVER={SQL Server};SERVER=Venus;DATABASE=Demo;UID=bcrisp;PWD=Bcrisp*5"
-)
-
+# ---- Load Org Names from SQLite ----
 try:
-    with pyodbc.connect(conn_str) as conn:
+    with sqlite3.connect("leads.db") as conn:
         cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS LeadSources (OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT, Address TEXT, Email TEXT, SourceType TEXT)")
         cursor.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")
         org_names = [row[0] for row in cursor.fetchall()]
 except Exception:
@@ -117,12 +103,7 @@ except Exception:
     st.sidebar.error("❌ Could not load organizations.")
 
 default_index = 0 if st.session_state.org_name == "All" else (["All"] + org_names).index(st.session_state.org_name)
-
-st.sidebar.selectbox(
-    "Organization Name", ["All"] + org_names,
-    index=default_index,
-    key="org_name"
-)
+st.sidebar.selectbox("Organization Name", ["All"] + org_names, index=default_index, key="org_name")
 
 st.sidebar.multiselect(
     "Source Types",
@@ -132,12 +113,11 @@ st.sidebar.multiselect(
     key="source_types"
 )
 
-# ✅ Reset Filters
 st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
     "org_name": "All", "source_types": [], "page": 1
 }))
 
-# ➕ Add New Lead
+# ---- Add New Lead ----
 if st.sidebar.checkbox("➕ Add New Lead"):
     with st.form("add_lead_form"):
         st.markdown("### ➕ Add New Lead")
@@ -152,7 +132,7 @@ if st.sidebar.checkbox("➕ Add New Lead"):
             "Client Reference", "Board/wellwishers"])
         if st.form_submit_button("✅ Submit Lead") and org:
             try:
-                with pyodbc.connect(conn_str) as conn:
+                with sqlite3.connect("leads.db") as conn:
                     cur = conn.cursor()
                     cur.execute("""
                         INSERT INTO LeadSources 
@@ -164,38 +144,37 @@ if st.sidebar.checkbox("➕ Add New Lead"):
             except Exception as e:
                 st.error(f"❌ Insert Error: {e}")
 
-# ---- SQL Filters ----
+# ---- Filter Query ----
 filters, params = [], []
 if st.session_state.org_name != "All":
     filters.append("OrganizationName = ?")
     params.append(st.session_state.org_name)
 if st.session_state.source_types:
-    filters.append(f"SourceType IN ({','.join('?' * len(st.session_state.source_types))})")
+    filters.append(f"SourceType IN ({','.join(['?'] * len(st.session_state.source_types))})")
     params.extend(st.session_state.source_types)
 where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 
-# ---- Pagination Setup ----
+# ---- Pagination ----
 page, per_page = st.session_state.page, 10000
 offset = (page - 1) * per_page
 
 # ---- Data Fetch ----
 data, total_count = [], 0
 try:
-    with pyodbc.connect(conn_str) as conn:
+    with sqlite3.connect("leads.db") as conn:
         cur = conn.cursor()
         cur.execute(f"SELECT COUNT(*) FROM LeadSources {where_clause}", params)
         total_count = cur.fetchone()[0]
-
         cur.execute(f"""
             SELECT OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType
             FROM LeadSources {where_clause}
-            ORDER BY OrganizationName OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
-        """, (*params, offset, per_page))
-        data = [tuple(row) for row in cur.fetchall()]
+            ORDER BY OrganizationName LIMIT ? OFFSET ?
+        """, (*params, per_page, offset))
+        data = cur.fetchall()
 except Exception as e:
     st.error(f"❌ Database Error: {e}")
 
-# ---- Table Display ----
+# ---- Display Table ----
 if data:
     st.markdown(f"<p style='font-size:14px;'>🎯 {total_count} lead(s) match the applied filters</p>", unsafe_allow_html=True)
 
@@ -215,11 +194,11 @@ if data:
 
     df = pd.DataFrame(data, columns=["Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"])
     df["Source Type"] = df["Source Type"].apply(get_source_type_icon)
-    df.index = df.index + 1
+    df.index += 1
     df.columns = ["🏢 Organization", "👤 Contact Person", "📞 Contact", "📍 Address", "✉️ Email", "📘 Source Type"]
     st.dataframe(df, use_container_width=True)
 
-    # ---- Dashboard Analytics ----
+    # ---- Dashboard ----
     st.markdown("### 📊 Lead Dashboard Analytics")
     df_viz = pd.DataFrame(data, columns=["Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"])
     total = len(df_viz)
@@ -232,7 +211,6 @@ if data:
     col3.metric("🔥 Top Source", top_src)
 
     pie = px.pie(df_viz, names="Source Type", title="Source Distribution", hole=0.4)
-
     org_counts = df_viz["Organization"].value_counts().reset_index()
     org_counts.columns = ["Organization", "Count"]
     bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
@@ -248,7 +226,6 @@ else:
 # ---- Pagination Footer ----
 pages = max(1, math.ceil(total_count / per_page))
 st.caption(f"Page {page} of {pages} — {total_count} total results")
-
 prev, _, next = st.columns([1, 2, 1])
 if page > 1 and prev.button("⬅ Previous"):
     st.session_state.page -= 1
