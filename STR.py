@@ -6,6 +6,8 @@ import plotly.express as px
 
 # ---- Page Setup ----
 st.set_page_config(layout="wide", page_title="Lead Manager")
+
+# ---- Global Style Fixes (Hide FAB + Footer) ----
 st.markdown("""
     <style>
     thead tr th {
@@ -44,6 +46,12 @@ st.markdown("""
     }
     .element-container:has(.stDataFrame) {
         width: 100% !important;
+    }
+
+    /* Hide Streamlit FAB and footer */
+    #MainMenu, footer, .stDeployButton, .st-emotion-cache-6qob1r {
+        visibility: hidden !important;
+        height: 0px !important;
     }
     </style>
 """, unsafe_allow_html=True)
