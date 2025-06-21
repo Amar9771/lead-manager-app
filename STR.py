@@ -6,10 +6,9 @@ import plotly.express as px
 
 # ---- Page Setup ----
 st.set_page_config(layout="wide", page_title="Lead Manager")
-
-# ---- Global Style Fixes (Hide FAB + Footer) ----
 st.markdown("""
     <style>
+    /* Custom Table Styling */
     thead tr th {
         background-color: #f1f5f9 !important;
         color: #1f2937 !important;
@@ -48,10 +47,15 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* Hide Streamlit FAB and footer */
-    #MainMenu, footer, .stDeployButton, .st-emotion-cache-6qob1r {
-        visibility: hidden !important;
-        height: 0px !important;
+    /* Hide Streamlit UI elements */
+    #MainMenu, footer, header {
+        visibility: hidden;
+    }
+    .stDeployButton, .stActionButtonIcon, .css-eczf16, .css-1fcdlhc {
+        display: none !important;
+    }
+    .st-emotion-cache-6qob1r, .st-emotion-cache-1oe5cao {
+        display: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -203,20 +207,20 @@ if data:
     df = pd.DataFrame(data, columns=["Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"])
     df["Source Type"] = df["Source Type"].apply(get_source_type_icon)
     df.index += 1
-    df.columns = ["🏢 Organization", "👤 Contact Person", "📞 Contact", "📍 Address", "✉️ Email", "📘 Source Type"]
+    df.columns = ["\U0001F3E2 Organization", "\U0001F464 Contact Person", "\U0001F4DE Contact", "\U0001F4CD Address", "\u2709\uFE0F Email", "\U0001F4D8 Source Type"]
     st.dataframe(df, use_container_width=True)
 
     # ---- Dashboard ----
-    st.markdown("### 📊 Lead Dashboard Analytics")
+    st.markdown("### \U0001F4CA Lead Dashboard Analytics")
     df_viz = pd.DataFrame(data, columns=["Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"])
     total = len(df_viz)
     unique_orgs = df_viz["Organization"].nunique()
     top_src = df_viz["Source Type"].value_counts().idxmax()
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("🧾 Total Leads", total)
-    col2.metric("🏢 Unique Organizations", unique_orgs)
-    col3.metric("🔥 Top Source", top_src)
+    col1.metric("\U0001F9BE Total Leads", total)
+    col2.metric("\U0001F3E2 Unique Organizations", unique_orgs)
+    col3.metric("\U0001F525 Top Source", top_src)
 
     pie = px.pie(df_viz, names="Source Type", title="Source Distribution", hole=0.4)
     org_counts = df_viz["Organization"].value_counts().reset_index()
@@ -235,9 +239,9 @@ else:
 pages = max(1, math.ceil(total_count / per_page))
 st.caption(f"Page {page} of {pages} — {total_count} total results")
 prev, _, next = st.columns([1, 2, 1])
-if page > 1 and prev.button("⬅ Previous"):
+if page > 1 and prev.button("\u2B05 Previous"):
     st.session_state.page -= 1
     st.rerun()
-if page < pages and next.button("Next ➡"):
+if page < pages and next.button("Next \u27A1"):
     st.session_state.page += 1
     st.rerun()
