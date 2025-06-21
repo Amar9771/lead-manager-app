@@ -1,4 +1,3 @@
-streamlit
-pyodbc
+streamlit==1.34.0
 pandas
-plotly
+sqlite3
