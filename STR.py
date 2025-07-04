@@ -152,9 +152,9 @@ except Exception:
     org_names = []
     st.sidebar.error("❌ Could not load organizations.")
 
-st.sidebar.selectbox("Organization", ["All"] + org_names,
-                     index=0 if st.session_state.org_name == "All" else ["All"] + org_names.index(st.session_state.org_name),
-                     key="org_name")
+org_list = ["All"] + org_names
+default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
+st.sidebar.selectbox("Organization", org_list, index=default_index, key="org_name")
 
 st.sidebar.multiselect("Source Type", SOURCE_TYPES, key="source_types")
 st.sidebar.text_input("🔎 Search Org/Contact", key="search")
