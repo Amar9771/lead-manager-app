@@ -45,7 +45,8 @@ st.markdown("""
         border-right: 1px solid #cbd5e1;
     }
     .main > div:first-child {
-        padding-top: 10px !important;
+        padding-top: 0rem !important;
+        margin-top: -3rem !important;
     }
     .lead-header {
         display: flex;
