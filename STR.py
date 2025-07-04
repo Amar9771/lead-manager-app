@@ -1,39 +1,17 @@
- import streamlit as st
+import streamlit as st
 import sqlite3
 import pandas as pd
 import math
 import plotly.express as px
 import hashlib
-from datetime import datetime
 
-# ---------------------- CONFIG & BANNER ----------------------
+# ---------------------- CONFIG & CONSTANTS ----------------------
 st.set_page_config(layout="wide", page_title="Lead Manager")
-
-now = datetime.now().strftime("%A, %d %B %Y — %I:%M %p")
-
-st.markdown("""
-<div style='
-    background: linear-gradient(90deg, #e0f2fe, #ffffff);
-    border-bottom: 1px solid #cbd5e1;
-    padding: 15px 30px;
-    margin-bottom: -20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 16px;
-    color: #1e3a8a;
-    font-weight: 500;
-    font-family: "Segoe UI", sans-serif;
-'>
-    <div style='display: flex; align-items: center; gap: 12px;'>
-        <img src='https://www.brickworkratings.com/Images/logo.svg' alt='Brickwork Logo' style='height: 32px;' />
-        <span>Welcome to <b>Lead Manager</b> — Organize. Track. Convert.</span>
-    </div>
-    <div>
-        🕒 {now}
-    </div>
-</div>
-""".replace("{now}", now), unsafe_allow_html=True)
+SOURCE_TYPES = [
+    "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
+    "Conference /Webinors", "Industry Database", "Social Media",
+    "Client Reference", "Board/wellwishers"
+]
 
 # ---------------------- STYLING ----------------------
 st.markdown("""
@@ -114,6 +92,7 @@ def logout():
     st.session_state.role = ""
     st.rerun()
 
+# ---------------------- INIT ----------------------
 init_user_db()
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -121,19 +100,13 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# ---------------------- SIDEBAR DEFAULTS ----------------------
+# ---------------------- SESSION STATE ----------------------
 for key, default in {
     "dark_mode": False, "page": 1, "org_name": "All",
     "source_types": [], "search": ""
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
-
-SOURCE_TYPES = [
-    "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
-    "Conference /Webinors", "Industry Database", "Social Media",
-    "Client Reference", "Board/wellwishers"
-]
 
 # ---------------------- DARK MODE TOGGLE ----------------------
 if st.sidebar.checkbox("🌚 Dark Mode", value=st.session_state.dark_mode):
@@ -188,6 +161,7 @@ st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update
     "org_name": "All", "source_types": [], "page": 1, "search": ""
 }))
 
+# ---------------------- ADD NEW LEAD ----------------------
 if st.sidebar.checkbox("➕ Add New Lead"):
     with st.form("add_lead_form"):
         st.markdown("### ➕ Add New Lead")
@@ -210,7 +184,7 @@ if st.sidebar.checkbox("➕ Add New Lead"):
             except Exception as e:
                 st.error(f"❌ Insert Error: {e}")
 
-# ---------------------- QUERY ----------------------
+# ---------------------- QUERY FILTERING ----------------------
 filters, params = [], []
 if st.session_state.org_name != "All":
     filters.append("OrganizationName = ?")
@@ -220,9 +194,11 @@ if st.session_state.source_types:
     params.extend(st.session_state.source_types)
 where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 
+# ---------------------- PAGINATION ----------------------
 page, per_page = st.session_state.page, 10000
 offset = (page - 1) * per_page
 
+# ---------------------- FETCH DATA ----------------------
 try:
     with sqlite3.connect("leads.db") as conn:
         cur = conn.cursor()
@@ -237,29 +213,37 @@ except Exception as e:
     data = []
     st.error(f"❌ Database Error: {e}")
 
+# ---------------------- DISPLAY TABLE ----------------------
 if data:
     df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
 
     if st.session_state.search:
         search = st.session_state.search.lower()
-        df = df[df["\ud83c\udfe2\u00a0\u00a0Organization"].str.lower().str.contains(search) | df["\ud83d\udc64\u00a0\u00a0Contact Person"].str.lower().str.contains(search)]
+        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
 
     df.index += 1
+
     colA, colB = st.columns([3, 1])
     with colA:
-        st.markdown(f"<p style='font-size:14px;'>🌟 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
     with colB:
-        st.download_button("📅 CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
+        st.download_button("📥 CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
 
-    st.dataframe(df, use_container_width=True)
+    if st.session_state.dark_mode:
+        st.dataframe(df.style.set_properties(**{
+            'background-color': '#2c2c2c', 'color': 'white', 'border-color': 'gray'
+        }), use_container_width=True)
+    else:
+        st.dataframe(df, use_container_width=True)
 
+    # ---------------------- DASHBOARD ----------------------
     st.markdown("### 📊 Lead Dashboard Analytics")
     total = len(df)
     unique_orgs = df["🏢  Organization"].nunique()
     top_src = df["📘  Source Type"].value_counts().idxmax()
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("🧰 Total Leads", total)
+    col1.metric("🧾 Total Leads", total)
     col2.metric("🏢 Unique Orgs", unique_orgs)
     col3.metric("🔥 Top Source", top_src)
 
@@ -277,6 +261,7 @@ if data:
 else:
     st.warning("No data found.")
 
+# ---------------------- PAGINATION CONTROLS ----------------------
 pages = max(1, math.ceil(total_count / per_page))
 st.caption(f"Page {page} of {pages} — {total_count} total records")
 prev, _, next = st.columns([1, 2, 1])
