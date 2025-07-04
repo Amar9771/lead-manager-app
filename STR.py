@@ -149,7 +149,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown(f"<p style='text-align:right; margin-top: -35px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align:right; margin-top: -25px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
 if st.button("🔓 Logout"):
     logout()
 
@@ -239,8 +239,6 @@ if data:
     colA, colB = st.columns([3, 1])
     with colA:
         st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
-    with colB:
-        st.download_button("📥 CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
 
     if st.session_state.dark_mode:
         st.dataframe(df.style.set_properties(**{
