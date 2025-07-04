@@ -5,8 +5,6 @@ import hashlib
 import plotly.express as px
 
 # ---------------------- CONFIG ----------------------
-st.set_page_config(layout="wide", page_title="Lead Manager")
-
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
@@ -103,10 +101,6 @@ if not st.session_state.logged_in:
 
 # ---------------------- HEADER ----------------------
 st.markdown(f"""
-<div class="header-container">
-    <h1>📘 Lead Manager</h1>
-    <p style='text-align:right;'>👋 Logged in as: <b>{st.session_state.username}</b> ({st.session_state.role})</p>
-</div>
 """, unsafe_allow_html=True)
 
 if st.button("🔓 Logout"):
