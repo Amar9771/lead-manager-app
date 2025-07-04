@@ -5,6 +5,8 @@ import hashlib
 import plotly.express as px
 
 # ---------------------- CONFIG ----------------------
+st.set_page_config(layout="wide", page_title="Lead Manager")
+
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
@@ -33,26 +35,16 @@ st.markdown("""
         padding: 12px 25px;
         font-size: 22px;
         font-weight: bold;
-        text-align: left;
+        text-align: center;
         border-bottom: 3px solid #0d47a1;
     }
     div[data-testid="stDataFrame"] div[role="grid"] {
         overflow-x: auto;
         white-space: nowrap;
     }
-    <style>
-...
-.top-banner {
-    background-color: #1e3a8a;
-    color: white;
-    padding: 12px 25px;
-    font-size: 22px;
-    font-weight: bold;
-    text-align: left;
-    border-bottom: 3px solid #0d47a1;
-}
-</style>
-<div class="top-banner">🚀 Lead Manager Dashboard</div>
+    </style>
+    <div class="top-banner">🚀 Lead Manager Dashboard</div>
+""", unsafe_allow_html=True)
 
 # ---------------------- AUTH ----------------------
 def hash_password(password):
@@ -111,6 +103,9 @@ if not st.session_state.logged_in:
 
 # ---------------------- HEADER ----------------------
 st.markdown(f"""
+<div style='text-align:right; font-size:16px; padding-right:20px;'>
+👋 Logged in as: <b>{st.session_state.username}</b> ({st.session_state.role})
+</div>
 """, unsafe_allow_html=True)
 
 if st.button("🔓 Logout"):
