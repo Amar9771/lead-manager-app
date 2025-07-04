@@ -1,4 +1,3 @@
-# Lead Manager App with Multi-User Roles (Admin/User)
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -31,14 +30,27 @@ st.markdown("""
     .stSidebar {
         background-color: #e0f2fe;
     }
-    .sticky-header {
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        background: white;
-        padding-top: 1rem;
+    .header-container {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 10px 30px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    .header-container h1, .header-container p {
+        margin: 0;
+    }
+    .top-banner {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 12px 25px;
+        font-size: 22px;
+        font-weight: bold;
+        text-align: left;
+        border-bottom: 3px solid #0d47a1;
     }
     </style>
+    <div class="top-banner">🚀 Lead Manager Dashboard</div>
 """, unsafe_allow_html=True)
 
 # ---------------------- AUTH ----------------------
@@ -84,9 +96,8 @@ def login():
                 st.error("❌ Invalid credentials.")
 
 def logout():
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.role = ""
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
     st.rerun()
 
 # ---------------------- INIT ----------------------
@@ -99,8 +110,8 @@ if not st.session_state.logged_in:
 
 # ---------------------- HEADER ----------------------
 st.markdown("""
-<div class="sticky-header">
-    <h1 style="color:#1e3a8a;">📘 Lead Manager</h1>
+<div class="header-container">
+    <h1>📘 Lead Manager</h1>
     <p style='text-align:right;'>👋 Logged in as: <b>{}</b> ({})</p>
 </div>
 """.format(st.session_state.username, st.session_state.role), unsafe_allow_html=True)
@@ -130,8 +141,8 @@ with st.sidebar:
             st.session_state.source_types = []
             st.session_state.search = ""
 
-    # Only Admins can add leads
-    if st.session_state.role == 'admin':
+    # Lead Entry Section (For Admin & User)
+    if st.session_state.role in ['admin', 'user']:
         if st.checkbox("➕ Add New Lead"):
             with st.form("add_lead_form"):
                 org = st.text_input("Organization")
@@ -140,13 +151,55 @@ with st.sidebar:
                 email = st.text_input("Email")
                 addr = st.text_area("Address")
                 source = st.selectbox("Source Type", SOURCE_TYPES)
-                if st.form_submit_button("✅ Submit Lead") and org:
-                    with sqlite3.connect("leads.db") as conn:
-                        conn.execute("""
-                            INSERT INTO LeadSources 
-                            (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
-                            VALUES (?, ?, ?, ?, ?, ?)""", (org, contact, phone, addr, email, source))
+                if st.form_submit_button("✅ Submit Lead"):
+                    if org and contact and phone:
+                        with sqlite3.connect("leads.db") as conn:
+                            conn.execute("""
+                                INSERT INTO LeadSources 
+                                (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                                VALUES (?, ?, ?, ?, ?, ?)""", (org, contact, phone, addr, email, source))
                         st.success(f"Lead '{org}' added successfully!")
+                    else:
+                        st.warning("Please fill in required fields: Organization, Contact, and Contact Details.")
+
+        st.markdown("### 📤 Bulk Lead Upload")
+        upload_file = st.file_uploader("Upload Excel or CSV", type=["xlsx", "csv"])
+        if upload_file:
+            try:
+                if upload_file.name.endswith(".csv"):
+                    bulk_df = pd.read_csv(upload_file)
+                else:
+                    bulk_df = pd.read_excel(upload_file)
+
+                expected_cols = [
+                    "OrganizationName", "ContactPersonName", "ContactDetails",
+                    "Address", "Email", "SourceType"
+                ]
+                if all(col in bulk_df.columns for col in expected_cols):
+                    st.success("✅ File read successfully. Preview below:")
+                    st.dataframe(bulk_df.head())
+
+                    if st.button("🚀 Upload Leads to Database"):
+                        with sqlite3.connect("leads.db") as conn:
+                            for _, row in bulk_df.iterrows():
+                                conn.execute("""
+                                    INSERT INTO LeadSources 
+                                    (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                                    VALUES (?, ?, ?, ?, ?, ?)""",
+                                    tuple(row[col] for col in expected_cols))
+                        st.success("✅ All leads uploaded!")
+                        st.rerun()
+                else:
+                    st.error(f"Missing required columns. Expected: {', '.join(expected_cols)}")
+            except Exception as e:
+                st.error(f"❌ Failed to read file: {e}")
+
+        if st.checkbox("📥 Download Upload Template"):
+            template = pd.DataFrame(columns=[
+                "OrganizationName", "ContactPersonName", "ContactDetails",
+                "Address", "Email", "SourceType"
+            ])
+            st.download_button("Download Template", template.to_csv(index=False), "lead_upload_template.csv", "text/csv")
 
     # Admin: Create user
     if st.session_state.role == 'admin':
