@@ -4,7 +4,6 @@ import pandas as pd
 import math
 import plotly.express as px
 import hashlib
-from datetime import datetime
 
 # ---------------------- AUTH SECTION ----------------------
 
@@ -123,15 +122,12 @@ try:
         cursor.execute("""
             IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LeadSources' AND xtype='U')
             CREATE TABLE LeadSources (
-                LeadID INT IDENTITY(1,1) PRIMARY KEY,
                 OrganizationName NVARCHAR(255),
                 ContactPersonName NVARCHAR(255),
                 ContactDetails NVARCHAR(255),
                 Address NVARCHAR(MAX),
                 Email NVARCHAR(255),
-                SourceType NVARCHAR(100),
-                Remarks NVARCHAR(MAX),
-                CreatedOn DATETIME
+                SourceType NVARCHAR(100)
             )
         """)
         cursor.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")
@@ -165,7 +161,6 @@ if st.sidebar.checkbox("➕ Add New Lead"):
         phone = st.text_input("Contact Details")
         email = st.text_input("Email")
         addr = st.text_area("Address")
-        remarks = st.text_area("Remarks")
         source = st.selectbox("Source Type", [
             "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
             "Conference /Webinors", "Industry Database", "Social Media",
@@ -176,9 +171,9 @@ if st.sidebar.checkbox("➕ Add New Lead"):
                     cur = conn.cursor()
                     cur.execute("""
                         INSERT INTO LeadSources 
-                        (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType, Remarks, CreatedOn)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (org, contact, phone, addr, email, source, remarks, datetime.now()))
+                        (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (org, contact, phone, addr, email, source))
                     conn.commit()
                     st.success(f"✅ Lead '{org}' added successfully!")
             except Exception as e:
@@ -206,7 +201,7 @@ try:
         cur.execute(f"SELECT COUNT(*) FROM LeadSources {where_clause}", params)
         total_count = cur.fetchone()[0]
         query = f"""
-            SELECT LeadID, OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType, Remarks, CreatedOn
+            SELECT OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType
             FROM LeadSources {where_clause}
             ORDER BY OrganizationName OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
         """
@@ -219,7 +214,7 @@ except Exception as e:
 
 if data:
     df = pd.DataFrame(data, columns=[
-        "Lead ID", "Organization", "Contact Person", "Contact", "Address", "Email", "Source Type", "Remarks", "Created On"
+        "Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"
     ])
     df.index += 1
     st.dataframe(df, use_container_width=True)
