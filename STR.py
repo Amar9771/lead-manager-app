@@ -7,6 +7,7 @@ import hashlib
 
 # ---------------------- CONFIG & CONSTANTS ----------------------
 st.set_page_config(layout="wide", page_title="Lead Manager")
+
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
@@ -44,17 +45,26 @@ st.markdown("""
         padding: 16px;
         border-right: 1px solid #cbd5e1;
     }
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        display: none;
+    }
     .main > div:first-child {
-        padding-top: 10px !important;
-       
+        padding-top: 0 !important;
+        margin-top: -3.5rem !important;
     }
     .lead-header {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background-color: #f5f9ff;
+        padding: 10px 0;
         display: flex;
         justify-content: center;
         align-items: center;
         gap: 10px;
-        margin-top: -20px;
-        margin-bottom: 10px;
+        margin-top: -50px;
+        margin-bottom: 5px;
+        border-bottom: 1px solid #e2e8f0;
     }
     .lead-header img {
         width: 40px;
@@ -124,22 +134,50 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ---------------------- DARK MODE TOGGLE ----------------------
-if st.sidebar.checkbox("🌚 Dark Mode", value=st.session_state.dark_mode):
-    st.session_state.dark_mode = True
-    st.toast("🌙 Dark Mode Enabled")
-else:
-    st.session_state.dark_mode = False
-    st.toast("🌞 Light Mode Enabled")
+# ---------------------- COLLAPSIBLE SIDEBAR ----------------------
+show_sidebar = st.sidebar.checkbox("📂 Show Filters", value=True)
+if show_sidebar:
+    st.sidebar.markdown("### 🔍 Filters")
+    try:
+        with sqlite3.connect("leads.db") as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS LeadSources (
+                OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
+                Address TEXT, Email TEXT, SourceType TEXT)""")
+            org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")]
+    except:
+        org_names = []
+        st.sidebar.error("❌ Could not load organizations.")
 
-if st.session_state.dark_mode:
-    st.markdown("""
-    <style>
-    .stApp { background-color: #1e1e1e !important; color: white !important; }
-    div[data-testid="stSidebar"] { background-color: #2c2c2c !important; color: white !important; }
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] { background-color: #333; color: white; }
-    </style>
-    """, unsafe_allow_html=True)
+    org_list = ["All"] + org_names
+    default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
+    st.sidebar.selectbox("Organization", org_list, index=default_index, key="org_name")
+    st.sidebar.multiselect("Source Type", SOURCE_TYPES, key="source_types")
+    st.sidebar.text_input("🔎 Search Org/Contact", key="search", placeholder="e.g., TCS or Rajesh")
+    st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
+        "org_name": "All", "source_types": [], "page": 1, "search": ""
+    }))
+
+    if st.sidebar.checkbox("➕ Add New Lead"):
+        with st.form("add_lead_form"):
+            st.markdown("### ➕ Add New Lead")
+            org = st.text_input("Organization")
+            contact = st.text_input("Contact Person")
+            phone = st.text_input("Contact Details")
+            email = st.text_input("Email")
+            addr = st.text_area("Address")
+            source = st.selectbox("Source Type", SOURCE_TYPES)
+            if st.form_submit_button("✅ Submit Lead") and org:
+                try:
+                    with sqlite3.connect("leads.db") as conn:
+                        conn.execute("""
+                            INSERT INTO LeadSources 
+                            (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (org, contact, phone, addr, email, source))
+                        conn.commit()
+                        st.success(f"✅ Lead '{org}' added successfully!")
+                except Exception as e:
+                    st.error(f"❌ Insert Error: {e}")
 
 # ---------------------- HEADER ----------------------
 st.markdown("""
@@ -152,50 +190,6 @@ st.markdown("""
 st.markdown(f"<p style='text-align:right; margin-top: -25px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
 if st.button("🔓 Logout"):
     logout()
-
-# ---------------------- SIDEBAR ----------------------
-st.sidebar.markdown("### 🔍 Filters")
-try:
-    with sqlite3.connect("leads.db") as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS LeadSources (
-            OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
-            Address TEXT, Email TEXT, SourceType TEXT)""")
-        org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")]
-except:
-    org_names = []
-    st.sidebar.error("❌ Could not load organizations.")
-
-org_list = ["All"] + org_names
-default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
-st.sidebar.selectbox("Organization", org_list, index=default_index, key="org_name")
-st.sidebar.multiselect("Source Type", SOURCE_TYPES, key="source_types")
-st.sidebar.text_input("🔎 Search Org/Contact", key="search", placeholder="e.g., TCS or Rajesh")
-st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
-    "org_name": "All", "source_types": [], "page": 1, "search": ""
-}))
-
-# ---------------------- ADD NEW LEAD ----------------------
-if st.sidebar.checkbox("➕ Add New Lead"):
-    with st.form("add_lead_form"):
-        st.markdown("### ➕ Add New Lead")
-        org = st.text_input("Organization")
-        contact = st.text_input("Contact Person")
-        phone = st.text_input("Contact Details")
-        email = st.text_input("Email")
-        addr = st.text_area("Address")
-        source = st.selectbox("Source Type", SOURCE_TYPES)
-        if st.form_submit_button("✅ Submit Lead") and org:
-            try:
-                with sqlite3.connect("leads.db") as conn:
-                    conn.execute("""
-                        INSERT INTO LeadSources 
-                        (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (org, contact, phone, addr, email, source))
-                    conn.commit()
-                    st.success(f"✅ Lead '{org}' added successfully!")
-            except Exception as e:
-                st.error(f"❌ Insert Error: {e}")
 
 # ---------------------- QUERY FILTERING ----------------------
 filters, params = [], []
@@ -228,11 +222,11 @@ except Exception as e:
 
 # ---------------------- DISPLAY TABLE ----------------------
 if data:
-    df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
+    df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
 
     if st.session_state.search:
         search = st.session_state.search.lower()
-        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
+        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
 
     df.index += 1
 
@@ -240,26 +234,20 @@ if data:
     with colA:
         st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
 
-    if st.session_state.dark_mode:
-        st.dataframe(df.style.set_properties(**{
-            'background-color': '#2c2c2c', 'color': 'white', 'border-color': 'gray'
-        }), use_container_width=True)
-    else:
-        st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)
 
-    # ---------------------- DASHBOARD ----------------------
     st.markdown("### 📊 Lead Dashboard Analytics")
     total = len(df)
-    unique_orgs = df["🏢  Organization"].nunique()
-    top_src = df["📘  Source Type"].value_counts().idxmax()
+    unique_orgs = df["🏢  Organization"].nunique()
+    top_src = df["📘  Source Type"].value_counts().idxmax()
 
     col1, col2, col3 = st.columns(3)
     col1.metric("🧾 Total Leads", total)
     col2.metric("🏢 Unique Orgs", unique_orgs)
     col3.metric("🔥 Top Source", top_src)
 
-    pie = px.pie(df, names="📘  Source Type", title="Source Distribution", hole=0.4)
-    org_counts = df["🏢  Organization"].value_counts().reset_index()
+    pie = px.pie(df, names="📘  Source Type", title="Source Distribution", hole=0.4)
+    org_counts = df["🏢  Organization"].value_counts().reset_index()
     org_counts.columns = ["Organization", "Count"]
     bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
     bar.update_traces(textposition="outside")
