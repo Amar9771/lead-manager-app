@@ -3,9 +3,10 @@ import sqlite3
 import pandas as pd
 import hashlib
 import plotly.express as px
-import math
 
-# ---------------------- CONFIG ---------------------
+# ---------------------- CONFIG ----------------------
+st.set_page_config(layout="wide", page_title="Lead Manager")
+
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
@@ -28,16 +29,6 @@ st.markdown("""
     .stSidebar {
         background-color: #e0f2fe;
     }
-    .header-container {
-        background-color: #1e3a8a;
-        color: white;
-        padding: 10px 30px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-    }
-    .header-container h1, .header-container p {
-        margin: 0;
-    }
     .top-banner {
         background-color: #1e3a8a;
         color: white;
@@ -46,6 +37,10 @@ st.markdown("""
         font-weight: bold;
         text-align: left;
         border-bottom: 3px solid #0d47a1;
+    }
+    div[data-testid="stDataFrame"] div[role="grid"] {
+        overflow-x: auto;
+        white-space: nowrap;
     }
     </style>
     <div class="top-banner">🚀 Lead Manager Dashboard</div>
@@ -107,8 +102,12 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ---------------------- HEADER ----------------------
-st.markdown("""
-""".format(st.session_state.username, st.session_state.role), unsafe_allow_html=True)
+st.markdown(f"""
+<div class="header-container">
+    <h1>📘 Lead Manager</h1>
+    <p style='text-align:right;'>👋 Logged in as: <b>{st.session_state.username}</b> ({st.session_state.role})</p>
+</div>
+""", unsafe_allow_html=True)
 
 if st.button("🔓 Logout"):
     logout()
@@ -124,19 +123,21 @@ with st.sidebar:
                     OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
                     Address TEXT, Email TEXT, SourceType TEXT)""")
                 org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources")]
+                source_types_from_db = [row[0] for row in conn.execute("SELECT DISTINCT SourceType FROM LeadSources WHERE SourceType IS NOT NULL")]
         except:
             org_names = []
+            source_types_from_db = []
 
         st.selectbox("Organization", ["All"] + org_names, key="org_name")
-        source_types_from_db = [row[0] for row in conn.execute("SELECT DISTINCT SourceType FROM LeadSources")]
         st.multiselect("Source Type", source_types_from_db, key="source_types")
         st.text_input("Search Org/Contact", key="search")
         if st.button("Reset Filters"):
-            st.session_state.org_name = "All"
-            st.session_state.source_types = []
-            st.session_state.search = ""
+            for k in ["org_name", "source_types", "search"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            st.experimental_rerun()
 
-    # Lead Entry Section (For Admin & User)
+    # Add New Lead (Admin & User)
     if st.session_state.role in ['admin', 'user']:
         if st.checkbox("➕ Add New Lead"):
             with st.form("add_lead_form"):
@@ -146,17 +147,15 @@ with st.sidebar:
                 email = st.text_input("Email")
                 addr = st.text_area("Address")
                 source = st.selectbox("Source Type", SOURCE_TYPES)
-                if st.form_submit_button("✅ Submit Lead"):
-                    if org and contact and phone:
-                        with sqlite3.connect("leads.db") as conn:
-                            conn.execute("""
-                                INSERT INTO LeadSources 
-                                (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
-                                VALUES (?, ?, ?, ?, ?, ?)""", (org, contact, phone, addr, email, source))
+                if st.form_submit_button("✅ Submit Lead") and org:
+                    with sqlite3.connect("leads.db") as conn:
+                        conn.execute("""
+                            INSERT INTO LeadSources 
+                            (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                            VALUES (?, ?, ?, ?, ?, ?)""", (org, contact, phone, addr, email, source))
                         st.success(f"Lead '{org}' added successfully!")
-                    else:
-                        st.warning("Please fill in required fields: Organization, Contact, and Contact Details.")
 
+        # Bulk Upload
         st.markdown("### 📤 Bulk Lead Upload")
         upload_file = st.file_uploader("Upload Excel or CSV", type=["xlsx", "csv"])
         if upload_file:
@@ -171,9 +170,9 @@ with st.sidebar:
                     "Address", "Email", "SourceType"
                 ]
                 if all(col in bulk_df.columns for col in expected_cols):
+                    bulk_df["SourceType"] = bulk_df["SourceType"].str.strip().str.title()
                     st.success("✅ File read successfully. Preview below:")
                     st.dataframe(bulk_df.head())
-
                     if st.button("🚀 Upload Leads to Database"):
                         with sqlite3.connect("leads.db") as conn:
                             for _, row in bulk_df.iterrows():
@@ -183,7 +182,7 @@ with st.sidebar:
                                     VALUES (?, ?, ?, ?, ?, ?)""",
                                     tuple(row[col] for col in expected_cols))
                         st.success("✅ All leads uploaded!")
-                        st.rerun()
+                        st.experimental_rerun()
                 else:
                     st.error(f"Missing required columns. Expected: {', '.join(expected_cols)}")
             except Exception as e:
@@ -196,7 +195,7 @@ with st.sidebar:
             ])
             st.download_button("Download Template", template.to_csv(index=False), "lead_upload_template.csv", "text/csv")
 
-    # Admin: Create user
+    # Admin: Create User
     if st.session_state.role == 'admin':
         with st.expander("➕ Create New User"):
             new_user = st.text_input("New Username")
@@ -224,7 +223,6 @@ where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 # ---------------------- LOAD DATA ----------------------
 try:
     with sqlite3.connect("leads.db") as conn:
-        total = conn.execute(f"SELECT COUNT(*) FROM LeadSources {where_clause}", params).fetchone()[0]
         df = pd.read_sql(f"""
             SELECT OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType
             FROM LeadSources {where_clause}
@@ -241,7 +239,7 @@ if st.session_state.get("search"):
 if not df.empty:
     df.index += 1
     st.markdown(f"<p>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, hide_index=False)
 
     # Dashboard
     st.markdown("### 📊 Lead Dashboard Analytics")
