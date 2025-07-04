@@ -40,9 +40,19 @@ st.markdown("""
         overflow-x: auto;
         white-space: nowrap;
     }
-    </style>
-    <div class="top-banner">🚀 Lead Manager Dashboard</div>
-""", unsafe_allow_html=True)
+    <style>
+...
+.top-banner {
+    background-color: #1e3a8a;
+    color: white;
+    padding: 12px 25px;
+    font-size: 22px;
+    font-weight: bold;
+    text-align: left;
+    border-bottom: 3px solid #0d47a1;
+}
+</style>
+<div class="top-banner">🚀 Lead Manager Dashboard</div>
 
 # ---------------------- AUTH ----------------------
 def hash_password(password):
