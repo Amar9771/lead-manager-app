@@ -232,26 +232,29 @@ if data:
     # CSV Export
     st.download_button("📥 Download CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
 
-    # ---- Dashboard Charts ----
-    st.markdown("### 📊 Lead Dashboard Analytics")
-    total = len(df)
-    unique_orgs = df["🏢 Organization"].nunique()
-    top_src = df["📘 Source Type"].value_counts().idxmax()
+    # ---- Dashboard ----
+    if not df.empty:
+        st.markdown("### 📊 Lead Dashboard Analytics")
+        total = len(df)
+        unique_orgs = df["🏢 Organization"].nunique()
+        top_src = df["📘 Source Type"].value_counts().idxmax()
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🧾 Total Leads", total)
-    col2.metric("🏢 Unique Orgs", unique_orgs)
-    col3.metric("🔥 Top Source", top_src.split(" ")[-1])
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🧾 Total Leads", total)
+        col2.metric("🏢 Unique Orgs", unique_orgs)
+        col3.metric("🔥 Top Source", top_src.split(" ")[-1])
 
-    pie = px.pie(df, names="📘 Source Type", title="Source Distribution", hole=0.4)
-    org_counts = df["🏢 Organization"].value_counts().reset_index()
-    org_counts.columns = ["Organization", "Count"]
-    bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
-    bar.update_traces(textposition="outside")
+        pie = px.pie(df, names="📘 Source Type", title="Source Distribution", hole=0.4)
+        org_counts = df["🏢 Organization"].value_counts().reset_index()
+        org_counts.columns = ["Organization", "Count"]
+        bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
+        bar.update_traces(textposition="outside")
 
-    col4, col5 = st.columns(2)
-    col4.plotly_chart(pie, use_container_width=True)
-    col5.plotly_chart(bar, use_container_width=True)
+        col4, col5 = st.columns(2)
+        col4.plotly_chart(pie, use_container_width=True)
+        col5.plotly_chart(bar, use_container_width=True)
+    else:
+        st.info("🔍 No analytics to display. Adjust filters to see data.")
 else:
     st.warning("No data found.")
 
