@@ -3,9 +3,71 @@ import sqlite3
 import pandas as pd
 import math
 import plotly.express as px
+import hashlib
+
+# ---------------------- AUTH SECTION ----------------------
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def check_password(password, hashed):
+    return hash_password(password) == hashed
+
+def init_user_db():
+    with sqlite3.connect("leads.db") as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS Users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                role TEXT
+            )
+        """)
+        result = conn.execute("SELECT * FROM Users WHERE username='admin'").fetchone()
+        if not result:
+            conn.execute("INSERT INTO Users (username, password, role) VALUES (?, ?, ?)",
+                         ("admin", hash_password("admin123"), "admin"))
+            conn.commit()
+
+def login():
+    st.title("🔐 Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        with sqlite3.connect("leads.db") as conn:
+            user = pd.read_sql("SELECT * FROM Users WHERE username=?", conn, params=(username,))
+            if not user.empty and check_password(password, user['password'][0]):
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.session_state.role = user['role'][0]
+                st.success(f"✅ Welcome, {username}!")
+                st.rerun()
+            else:
+                st.error("❌ Invalid credentials.")
+
+def logout():
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.role = ""
+    st.rerun()
+
+# ---- Init DB & Session ----
+init_user_db()
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    login()
+    st.stop()
+
+# ---------------------- MAIN DASHBOARD SECTION ----------------------
 
 # ---- Page Setup ----
 st.set_page_config(layout="wide", page_title="Lead Manager")
+st.markdown(f"<p style='text-align:right;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
+if st.button("🔓 Logout"):
+    logout()
+
 st.markdown("""
     <style>
     thead tr th {
