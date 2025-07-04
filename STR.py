@@ -44,6 +44,21 @@ st.markdown("""
         padding: 16px;
         border-right: 1px solid #cbd5e1;
     }
+    .main > div:first-child {
+        padding-top: 10px !important;
+    }
+    .lead-header {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: -20px;
+        margin-bottom: 10px;
+    }
+    .lead-header img {
+        width: 40px;
+        margin-bottom: 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -126,15 +141,12 @@ if st.session_state.dark_mode:
     """, unsafe_allow_html=True)
 
 # ---------------------- HEADER ----------------------
-with st.container():
-    colL, colM, colR = st.columns([2, 6, 2])
-    with colM:
-        st.markdown("""
-            <div style='text-align: center; margin-top: -20px;'>
-                <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png" width="40">
-                <h1 style='display: inline-block; margin-left: 10px;'>Lead Manager</h1>
-            </div>
-        """, unsafe_allow_html=True)
+st.markdown("""
+    <div class='lead-header'>
+        <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png">
+        <h1>Lead Manager</h1>
+    </div>
+""", unsafe_allow_html=True)
 
 st.markdown(f"<p style='text-align:right; margin-top: -35px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
 if st.button("🔓 Logout"):
