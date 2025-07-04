@@ -7,7 +7,6 @@ import hashlib
 
 # ---------------------- CONFIG & CONSTANTS ----------------------
 st.set_page_config(layout="wide", page_title="Lead Manager")
-
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
@@ -17,9 +16,11 @@ SOURCE_TYPES = [
 # ---------------------- STYLING ----------------------
 st.markdown("""
     <style>
+    html, body, [class*="css"] {
+        font-family: 'Segoe UI', sans-serif;
+    }
     .stApp {
         background: linear-gradient(135deg, #f5f9ff, #ffffff);
-        font-family: "Segoe UI", sans-serif;
     }
     h1, h2, h3 {
         color: #1e3a8a !important;
@@ -46,7 +47,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------------- AUTH SECTION ----------------------
+# ---------------------- AUTH ----------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -91,7 +92,7 @@ def logout():
     st.session_state.role = ""
     st.rerun()
 
-# ---- Init DB & Session ----
+# ---------------------- INIT ----------------------
 init_user_db()
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -99,23 +100,15 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# ---------------------- MAIN DASHBOARD ----------------------
-st.markdown(f"<p style='text-align:right;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
-if st.button("🔓 Logout"):
-    logout()
-
-# ---- Session Defaults ----
+# ---------------------- SESSION STATE ----------------------
 for key, default in {
-    "dark_mode": False,
-    "page": 1,
-    "org_name": "All",
-    "source_types": [],
-    "search": ""
+    "dark_mode": False, "page": 1, "org_name": "All",
+    "source_types": [], "search": ""
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ---- Dark Mode Option ----
+# ---------------------- DARK MODE TOGGLE ----------------------
 if st.sidebar.checkbox("🌚 Dark Mode", value=st.session_state.dark_mode):
     st.session_state.dark_mode = True
     st.toast("🌙 Dark Mode Enabled")
@@ -132,15 +125,22 @@ if st.session_state.dark_mode:
     </style>
     """, unsafe_allow_html=True)
 
-# ---- Title ----
-st.markdown("""
-<div style='display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: -30px;'>
-    <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png" width="40">
-    <h1>Lead Manager</h1>
-</div>
-""", unsafe_allow_html=True)
+# ---------------------- HEADER ----------------------
+with st.container():
+    colL, colM, colR = st.columns([2, 6, 2])
+    with colM:
+        st.markdown("""
+            <div style='text-align: center; margin-top: -20px;'>
+                <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png" width="40">
+                <h1 style='display: inline-block; margin-left: 10px;'>Lead Manager</h1>
+            </div>
+        """, unsafe_allow_html=True)
 
-# ---- Sidebar Filters ----
+st.markdown(f"<p style='text-align:right; margin-top: -35px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
+if st.button("🔓 Logout"):
+    logout()
+
+# ---------------------- SIDEBAR ----------------------
 st.sidebar.markdown("### 🔍 Filters")
 try:
     with sqlite3.connect("leads.db") as conn:
@@ -148,21 +148,20 @@ try:
             OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
             Address TEXT, Email TEXT, SourceType TEXT)""")
         org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")]
-except Exception:
+except:
     org_names = []
     st.sidebar.error("❌ Could not load organizations.")
 
 org_list = ["All"] + org_names
 default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
 st.sidebar.selectbox("Organization", org_list, index=default_index, key="org_name")
-
 st.sidebar.multiselect("Source Type", SOURCE_TYPES, key="source_types")
-st.sidebar.text_input("🔎 Search Org/Contact", key="search")
+st.sidebar.text_input("🔎 Search Org/Contact", key="search", placeholder="e.g., TCS or Rajesh")
 st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
     "org_name": "All", "source_types": [], "page": 1, "search": ""
 }))
 
-# ---- Add New Lead ----
+# ---------------------- ADD NEW LEAD ----------------------
 if st.sidebar.checkbox("➕ Add New Lead"):
     with st.form("add_lead_form"):
         st.markdown("### ➕ Add New Lead")
@@ -185,7 +184,7 @@ if st.sidebar.checkbox("➕ Add New Lead"):
             except Exception as e:
                 st.error(f"❌ Insert Error: {e}")
 
-# ---- Query & Filters ----
+# ---------------------- QUERY FILTERING ----------------------
 filters, params = [], []
 if st.session_state.org_name != "All":
     filters.append("OrganizationName = ?")
@@ -195,11 +194,11 @@ if st.session_state.source_types:
     params.extend(st.session_state.source_types)
 where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 
-# ---- Pagination ----
+# ---------------------- PAGINATION ----------------------
 page, per_page = st.session_state.page, 10000
 offset = (page - 1) * per_page
 
-# ---- Fetch Data ----
+# ---------------------- FETCH DATA ----------------------
 try:
     with sqlite3.connect("leads.db") as conn:
         cur = conn.cursor()
@@ -214,51 +213,55 @@ except Exception as e:
     data = []
     st.error(f"❌ Database Error: {e}")
 
-# ---- Display Table ----
+# ---------------------- DISPLAY TABLE ----------------------
 if data:
-    df = pd.DataFrame(data, columns=["Organization", "Contact Person", "Contact", "Address", "Email", "Source Type"])
+    df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
 
-    # Apply Search Filter
     if st.session_state.search:
         search = st.session_state.search.lower()
-        df = df[df["Organization"].str.lower().str.contains(search) | df["Contact Person"].str.lower().str.contains(search)]
+        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
 
-    # Display Table
     df.index += 1
-    df.columns = ["🏢 Organization", "👤 Contact Person", "📞 Contact", "📍 Address", "✉️ Email", "📘 Source Type"]
-    st.markdown(f"<p style='font-size:14px;'>🎯 {len(df)} filtered lead(s)</p>", unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True)
 
-    # CSV Export
-    st.download_button("📥 Download CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
+    colA, colB = st.columns([3, 1])
+    with colA:
+        st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
+    with colB:
+        st.download_button("📥 CSV", df.to_csv(index=False).encode('utf-8'), file_name="leads.csv")
 
-    # ---- Dashboard ----
-    if not df.empty:
-        st.markdown("### 📊 Lead Dashboard Analytics")
-        total = len(df)
-        unique_orgs = df["🏢 Organization"].nunique()
-        top_src = df["📘 Source Type"].value_counts().idxmax()
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("🧾 Total Leads", total)
-        col2.metric("🏢 Unique Orgs", unique_orgs)
-        col3.metric("🔥 Top Source", top_src.split(" ")[-1])
-
-        pie = px.pie(df, names="📘 Source Type", title="Source Distribution", hole=0.4)
-        org_counts = df["🏢 Organization"].value_counts().reset_index()
-        org_counts.columns = ["Organization", "Count"]
-        bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
-        bar.update_traces(textposition="outside")
-
-        col4, col5 = st.columns(2)
-        col4.plotly_chart(pie, use_container_width=True)
-        col5.plotly_chart(bar, use_container_width=True)
+    if st.session_state.dark_mode:
+        st.dataframe(df.style.set_properties(**{
+            'background-color': '#2c2c2c', 'color': 'white', 'border-color': 'gray'
+        }), use_container_width=True)
     else:
-        st.info("🔍 No analytics to display. Adjust filters to see data.")
+        st.dataframe(df, use_container_width=True)
+
+    # ---------------------- DASHBOARD ----------------------
+    st.markdown("### 📊 Lead Dashboard Analytics")
+    total = len(df)
+    unique_orgs = df["🏢  Organization"].nunique()
+    top_src = df["📘  Source Type"].value_counts().idxmax()
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🧾 Total Leads", total)
+    col2.metric("🏢 Unique Orgs", unique_orgs)
+    col3.metric("🔥 Top Source", top_src)
+
+    pie = px.pie(df, names="📘  Source Type", title="Source Distribution", hole=0.4)
+    org_counts = df["🏢  Organization"].value_counts().reset_index()
+    org_counts.columns = ["Organization", "Count"]
+    bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
+    bar.update_traces(textposition="outside")
+
+    with st.expander("📊 View Source Type Distribution"):
+        st.plotly_chart(pie, use_container_width=True)
+
+    with st.expander("🏢 View Leads by Organization"):
+        st.plotly_chart(bar, use_container_width=True)
 else:
     st.warning("No data found.")
 
-# ---- Pagination Controls ----
+# ---------------------- PAGINATION CONTROLS ----------------------
 pages = max(1, math.ceil(total_count / per_page))
 st.caption(f"Page {page} of {pages} — {total_count} total records")
 prev, _, next = st.columns([1, 2, 1])
