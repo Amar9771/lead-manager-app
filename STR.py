@@ -7,14 +7,13 @@ import hashlib
 
 # ---------------------- CONFIG & CONSTANTS ----------------------
 st.set_page_config(layout="wide", page_title="Lead Manager")
-
 SOURCE_TYPES = [
     "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
     "Conference /Webinors", "Industry Database", "Social Media",
     "Client Reference", "Board/wellwishers"
 ]
 
-# ---------------------- STYLING ----------------------
+# ---------------------- CSS STYLING ----------------------
 st.markdown("""
     <style>
     html, body, [class*="css"] {
@@ -45,35 +44,28 @@ st.markdown("""
         padding: 16px;
         border-right: 1px solid #cbd5e1;
     }
-    [data-testid="stSidebar"][aria-expanded="false"] {
-        display: none;
-    }
-    .main > div:first-child {
-        padding-top: 0 !important;
-        margin-top: -3.5rem !important;
-    }
     .lead-header {
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        background-color: #f5f9ff;
-        padding: 10px 0;
         display: flex;
         justify-content: center;
         align-items: center;
         gap: 10px;
-        margin-top: -50px;
-        margin-bottom: 5px;
-        border-bottom: 1px solid #e2e8f0;
+        margin-top: 20px;
+        margin-bottom: 10px;
     }
     .lead-header img {
         width: 40px;
         margin-bottom: 0;
     }
+    thead tr th {
+        position: sticky;
+        top: 0;
+        background-color: #f3f4f6;
+        z-index: 2;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------------- AUTH ----------------------
+# ---------------------- AUTH FUNCTIONS ----------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -118,7 +110,7 @@ def logout():
     st.session_state.role = ""
     st.rerun()
 
-# ---------------------- INIT ----------------------
+# ---------------------- INIT LOGIN SESSION ----------------------
 init_user_db()
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -126,60 +118,68 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# ---------------------- SESSION STATE ----------------------
+# ---------------------- STATE DEFAULTS ----------------------
 for key, default in {
     "dark_mode": False, "page": 1, "org_name": "All",
-    "source_types": [], "search": ""
+    "source_types": [], "search": "", "show_filters": True
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ---------------------- COLLAPSIBLE SIDEBAR ----------------------
-show_sidebar = st.sidebar.checkbox("📂 Show Filters", value=True)
-if show_sidebar:
-    st.sidebar.markdown("### 🔍 Filters")
-    try:
-        with sqlite3.connect("leads.db") as conn:
-            conn.execute("""CREATE TABLE IF NOT EXISTS LeadSources (
-                OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
-                Address TEXT, Email TEXT, SourceType TEXT)""")
-            org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")]
-    except:
-        org_names = []
-        st.sidebar.error("❌ Could not load organizations.")
+# ---------------------- COLLAPSIBLE SIDEBAR TOGGLE ----------------------
+with st.sidebar:
+    st.checkbox("📂 Show Filters", key="show_filters")
+    if st.session_state.show_filters:
+        st.markdown("### 🔍 Filters")
+        try:
+            with sqlite3.connect("leads.db") as conn:
+                conn.execute("""CREATE TABLE IF NOT EXISTS LeadSources (
+                    OrganizationName TEXT, ContactPersonName TEXT, ContactDetails TEXT,
+                    Address TEXT, Email TEXT, SourceType TEXT)""")
+                org_names = [row[0] for row in conn.execute("SELECT DISTINCT OrganizationName FROM LeadSources ORDER BY OrganizationName")]
+        except:
+            org_names = []
+            st.sidebar.error("❌ Could not load organizations.")
 
-    org_list = ["All"] + org_names
-    default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
-    st.sidebar.selectbox("Organization", org_list, index=default_index, key="org_name")
-    st.sidebar.multiselect("Source Type", SOURCE_TYPES, key="source_types")
-    st.sidebar.text_input("🔎 Search Org/Contact", key="search", placeholder="e.g., TCS or Rajesh")
-    st.sidebar.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
-        "org_name": "All", "source_types": [], "page": 1, "search": ""
-    }))
+        org_list = ["All"] + org_names
+        default_index = org_list.index(st.session_state.org_name) if st.session_state.org_name in org_list else 0
+        st.selectbox("Organization", org_list, index=default_index, key="org_name")
+        st.multiselect("Source Type", SOURCE_TYPES, key="source_types")
+        st.text_input("🔎 Search Org/Contact", key="search", placeholder="e.g., TCS or Rajesh")
+        st.button("🔄 Reset Filters", on_click=lambda: st.session_state.update({
+            "org_name": "All", "source_types": [], "page": 1, "search": ""
+        }))
+        st.checkbox("➕ Add New Lead", key="add_lead")
 
-    if st.sidebar.checkbox("➕ Add New Lead"):
-        with st.form("add_lead_form"):
-            st.markdown("### ➕ Add New Lead")
-            org = st.text_input("Organization")
-            contact = st.text_input("Contact Person")
-            phone = st.text_input("Contact Details")
-            email = st.text_input("Email")
-            addr = st.text_area("Address")
-            source = st.selectbox("Source Type", SOURCE_TYPES)
-            if st.form_submit_button("✅ Submit Lead") and org:
-                try:
-                    with sqlite3.connect("leads.db") as conn:
-                        conn.execute("""
-                            INSERT INTO LeadSources 
-                            (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (org, contact, phone, addr, email, source))
-                        conn.commit()
-                        st.success(f"✅ Lead '{org}' added successfully!")
-                except Exception as e:
-                    st.error(f"❌ Insert Error: {e}")
+# ---------------------- ADD NEW LEAD FORM ----------------------
+if st.session_state.show_filters and st.session_state.add_lead:
+    with st.form("add_lead_form"):
+        st.markdown("### ➕ Add New Lead")
+        org = st.text_input("Organization")
+        contact = st.text_input("Contact Person")
+        phone = st.text_input("Contact Details")
+        email = st.text_input("Email")
+        addr = st.text_area("Address")
+        source = st.selectbox("Source Type", SOURCE_TYPES)
+        if st.form_submit_button("✅ Submit Lead") and org:
+            try:
+                with sqlite3.connect("leads.db") as conn:
+                    conn.execute("""
+                        INSERT INTO LeadSources 
+                        (OrganizationName, ContactPersonName, ContactDetails, Address, Email, SourceType)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (org, contact, phone, addr, email, source))
+                    conn.commit()
+                    st.success(f"✅ Lead '{org}' added successfully!")
+            except Exception as e:
+                st.error(f"❌ Insert Error: {e}")
 
-# ---------------------- HEADER ----------------------
+# ---------------------- LOGOUT BUTTON ----------------------
+col_logout = st.columns([1])[0]
+with col_logout:
+    st.button("🔓 Logout", on_click=logout)
+
+# ---------------------- LEAD MANAGER HEADER ----------------------
 st.markdown("""
     <div class='lead-header'>
         <img src="https://cdn-icons-png.flaticon.com/512/3048/3048390.png">
@@ -187,11 +187,9 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-st.markdown(f"<p style='text-align:right; margin-top: -25px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
-if st.button("🔓 Logout"):
-    logout()
+st.markdown(f"<p style='text-align:right; margin-top: -15px;'>👋 Logged in as: <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
 
-# ---------------------- QUERY FILTERING ----------------------
+# ---------------------- FILTERING ----------------------
 filters, params = [], []
 if st.session_state.org_name != "All":
     filters.append("OrganizationName = ?")
@@ -205,7 +203,7 @@ where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 page, per_page = st.session_state.page, 10000
 offset = (page - 1) * per_page
 
-# ---------------------- FETCH DATA ----------------------
+# ---------------------- FETCH LEADS ----------------------
 try:
     with sqlite3.connect("leads.db") as conn:
         cur = conn.cursor()
@@ -222,32 +220,27 @@ except Exception as e:
 
 # ---------------------- DISPLAY TABLE ----------------------
 if data:
-    df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
-
+    df = pd.DataFrame(data, columns=["🏢  Organization", "👤  Contact Person", "📞  Contact", "📍  Address", "✉️  Email", "📘  Source Type"])
     if st.session_state.search:
         search = st.session_state.search.lower()
-        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
-
+        df = df[df["🏢  Organization"].str.lower().str.contains(search) | df["👤  Contact Person"].str.lower().str.contains(search)]
     df.index += 1
-
-    colA, colB = st.columns([3, 1])
-    with colA:
-        st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
-
+    st.markdown(f"<p style='font-size:14px;'>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True)
 
+    # ---------------------- DASHBOARD ----------------------
     st.markdown("### 📊 Lead Dashboard Analytics")
     total = len(df)
-    unique_orgs = df["🏢  Organization"].nunique()
-    top_src = df["📘  Source Type"].value_counts().idxmax()
+    unique_orgs = df["🏢  Organization"].nunique()
+    top_src = df["📘  Source Type"].value_counts().idxmax() if not df.empty else "N/A"
 
     col1, col2, col3 = st.columns(3)
     col1.metric("🧾 Total Leads", total)
     col2.metric("🏢 Unique Orgs", unique_orgs)
     col3.metric("🔥 Top Source", top_src)
 
-    pie = px.pie(df, names="📘  Source Type", title="Source Distribution", hole=0.4)
-    org_counts = df["🏢  Organization"].value_counts().reset_index()
+    pie = px.pie(df, names="📘  Source Type", title="Source Distribution", hole=0.4)
+    org_counts = df["🏢  Organization"].value_counts().reset_index()
     org_counts.columns = ["Organization", "Count"]
     bar = px.bar(org_counts, x="Organization", y="Count", text="Count", title="Leads by Organization")
     bar.update_traces(textposition="outside")
