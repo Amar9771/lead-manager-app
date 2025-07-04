@@ -7,12 +7,6 @@ import plotly.express as px
 # ---------------------- CONFIG ----------------------
 st.set_page_config(layout="wide", page_title="Lead Manager")
 
-SOURCE_TYPES = [
-    "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
-    "Conference /Webinors", "Industry Database", "Social Media",
-    "Client Reference", "Board/wellwishers"
-]
-
 # ---------------------- STYLING ----------------------
 st.markdown("""
     <style>
@@ -38,6 +32,11 @@ st.markdown("""
         text-align: center;
         border-bottom: 3px solid #0d47a1;
     }
+    .main .block-container {
+        padding-left: 2rem;
+        padding-right: 2rem;
+        max-width: 100%;
+    }
     div[data-testid="stDataFrame"] div[role="grid"] {
         overflow-x: auto;
         white-space: nowrap;
@@ -45,6 +44,12 @@ st.markdown("""
     </style>
     <div class="top-banner">🚀 Lead Manager Dashboard</div>
 """, unsafe_allow_html=True)
+
+SOURCE_TYPES = [
+    "Personal Contacts", "INC Clients in Bcrisp", "OCRA in Bcrisp", "Bankers",
+    "Conference /Webinors", "Industry Database", "Social Media",
+    "Client Reference", "Board/wellwishers"
+]
 
 # ---------------------- AUTH ----------------------
 def hash_password(password):
@@ -171,7 +176,7 @@ with st.sidebar:
                 if all(col in bulk_df.columns for col in expected_cols):
                     bulk_df["SourceType"] = bulk_df["SourceType"].str.strip().str.title()
                     st.success("✅ File read successfully. Preview below:")
-                    st.dataframe(bulk_df.head())
+                    st.dataframe(bulk_df.head(), use_container_width=True)
                     if st.button("🚀 Upload Leads to Database"):
                         with sqlite3.connect("leads.db") as conn:
                             for _, row in bulk_df.iterrows():
@@ -262,7 +267,7 @@ if st.session_state.role == 'admin':
     st.markdown("## 👥 Manage Users")
     with sqlite3.connect("leads.db") as conn:
         users_df = pd.read_sql("SELECT id, username, role FROM Users", conn)
-    st.dataframe(users_df)
+    st.dataframe(users_df, use_container_width=True)
     del_user = st.text_input("Enter username to delete")
     if st.button("Delete User") and del_user != "admin":
         with sqlite3.connect("leads.db") as conn:
