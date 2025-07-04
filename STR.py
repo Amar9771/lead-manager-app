@@ -128,7 +128,8 @@ with st.sidebar:
             org_names = []
 
         st.selectbox("Organization", ["All"] + org_names, key="org_name")
-        st.multiselect("Source Type", SOURCE_TYPES, key="source_types")
+        source_types_from_db = [row[0] for row in conn.execute("SELECT DISTINCT SourceType FROM LeadSources")]
+        st.multiselect("Source Type", source_types_from_db, key="source_types")
         st.text_input("Search Org/Contact", key="search")
         if st.button("Reset Filters"):
             st.session_state.org_name = "All"
