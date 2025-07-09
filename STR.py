@@ -136,10 +136,10 @@ with st.sidebar:
         st.multiselect("Source Type", source_types_from_db, key="source_types")
         st.text_input("Search Org/Contact", key="search")
         if st.button("Reset Filters"):
-            for k in ["org_name", "source_types", "search"]:
-                if k in st.session_state:
-                    del st.session_state[k]
-            st.experimental_rerun()
+    st.session_state["org_name"] = "All"
+    st.session_state["source_types"] = []
+    st.session_state["search"] = ""
+    st.experimental_rerun()
 
     # Add New Lead (Admin & User)
     if st.session_state.role in ['admin', 'user']:
