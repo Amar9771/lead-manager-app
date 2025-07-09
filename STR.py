@@ -132,18 +132,30 @@ with st.sidebar:
             org_names = []
             source_types_from_db = []
 
-        st.selectbox("Organization", ["All"] + org_names, key="org_name")
-        st.multiselect("Source Type", source_types_from_db, key="source_types")
-        st.text_input("Search Org/Contact", key="search")
+        default_org = "All"
+        default_source_types = []
+        default_search = ""
 
-        # ✅ FIXED: Properly reset filters
-        if st.button("Reset Filters"):
-            st.session_state["org_name"] = "All"
-            st.session_state["source_types"] = []
-            st.session_state["search"] = ""
+        if "reset_filters" in st.session_state and st.session_state.reset_filters:
+            st.session_state.reset_filters = False
+            st.session_state.org_name = default_org
+            st.session_state.source_types = default_source_types
+            st.session_state.search = default_search
             st.experimental_rerun()
 
-    # Add New Lead
+        org_value = st.session_state.get("org_name", default_org)
+        st.selectbox("Organization", ["All"] + org_names, key="org_name", index=(["All"] + org_names).index(org_value))
+
+        source_type_value = st.session_state.get("source_types", default_source_types)
+        st.multiselect("Source Type", source_types_from_db, key="source_types", default=source_type_value)
+
+        search_value = st.session_state.get("search", default_search)
+        st.text_input("Search Org/Contact", key="search", value=search_value)
+
+        if st.button("Reset Filters"):
+            st.session_state.reset_filters = True
+            st.experimental_rerun()
+
     if st.session_state.role in ['admin', 'user']:
         if st.checkbox("➕ Add New Lead"):
             with st.form("add_lead_form"):
@@ -161,8 +173,7 @@ with st.sidebar:
                             VALUES (?, ?, ?, ?, ?, ?)""", (org, contact, phone, addr, email, source))
                         st.success(f"Lead '{org}' added successfully!")
 
-        # Bulk Upload
-        st.markdown("### 📤 Bulk Lead Upload")
+        st.markdown("### 📄 Bulk Lead Upload")
         upload_file = st.file_uploader("Upload Excel or CSV", type=["xlsx", "csv"])
         if upload_file:
             try:
@@ -194,14 +205,13 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"❌ Failed to read file: {e}")
 
-        if st.checkbox("📥 Download Upload Template"):
+        if st.checkbox("📅 Download Upload Template"):
             template = pd.DataFrame(columns=[
                 "OrganizationName", "ContactPersonName", "ContactDetails",
                 "Address", "Email", "SourceType"
             ])
             st.download_button("Download Template", template.to_csv(index=False), "lead_upload_template.csv", "text/csv")
 
-    # Admin: Create User
     if st.session_state.role == 'admin':
         with st.expander("➕ Create New User"):
             new_user = st.text_input("New Username")
