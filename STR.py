@@ -135,13 +135,15 @@ with st.sidebar:
         st.selectbox("Organization", ["All"] + org_names, key="org_name")
         st.multiselect("Source Type", source_types_from_db, key="source_types")
         st.text_input("Search Org/Contact", key="search")
-        if st.button("Reset Filters"):
-    st.session_state["org_name"] = "All"
-    st.session_state["source_types"] = []
-    st.session_state["search"] = ""
-    st.experimental_rerun()
 
-    # Add New Lead (Admin & User)
+        # ✅ FIXED: Properly reset filters
+        if st.button("Reset Filters"):
+            st.session_state["org_name"] = "All"
+            st.session_state["source_types"] = []
+            st.session_state["search"] = ""
+            st.experimental_rerun()
+
+    # Add New Lead
     if st.session_state.role in ['admin', 'user']:
         if st.checkbox("➕ Add New Lead"):
             with st.form("add_lead_form"):
@@ -245,7 +247,6 @@ if not df.empty:
     st.markdown(f"<p>🎯 <b>{len(df)}</b> filtered lead(s)</p>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=False)
 
-    # Dashboard
     st.markdown("### 📊 Lead Dashboard Analytics")
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Leads", len(df))
